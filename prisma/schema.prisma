@@ -1,0 +1,465 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// --- Enums ---
+
+enum UserRole {
+  CEO
+  ENGINEER
+}
+
+enum ProjectStatus {
+  PLANNING
+  IN_PROGRESS
+  COMPLETED
+  DELAYED
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// --- Models ---
+
+model User {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email         String    @unique @db.VarChar
+  username      String    @unique @db.VarChar
+  password_hash String?   @db.VarChar
+  first_name    String?   @db.VarChar
+  last_name     String?   @db.VarChar
+  role          UserRole  @default(ENGINEER)
+  refresh_token String?   @db.VarChar
+  is_active     Boolean   @default(true)
+  created_at    DateTime  @default(now()) @db.Timestamp
+  created_by    String?   @db.Uuid
+  updated_at    DateTime? @updatedAt @db.Timestamp
+  updated_by    String?   @db.Uuid
+  deleted_at    DateTime? @db.Timestamp
+
+  // Self Audit Relations
+  creator User? @relation("UserCreator", fields: [created_by], references: [id])
+  updater User? @relation("UserUpdater", fields: [updated_by], references: [id])
+
+  // Backward Relations for Audit Trails
+  createdUsers User[] @relation("UserCreator")
+  updatedUsers User[] @relation("UserUpdater")
+
+  createdTemplates Template[] @relation("TemplateCreator")
+  updatedTemplates Template[] @relation("TemplateUpdater")
+
+  createdTemplatePhases TemplatePhase[] @relation("TemplatePhaseCreator")
+  updatedTemplatePhases TemplatePhase[] @relation("TemplatePhaseUpdater")
+
+  createdTemplateCheckpoints TemplateCheckpoint[] @relation("TemplateCheckpointCreator")
+  updatedTemplateCheckpoints TemplateCheckpoint[] @relation("TemplateCheckpointUpdater")
+
+  createdProjects Project[] @relation("ProjectCreator")
+  updatedProjects Project[] @relation("ProjectUpdater")
+
+  createdProjectDocuments ProjectDocument[] @relation("ProjectDocumentCreator")
+  updatedProjectDocuments ProjectDocument[] @relation("ProjectDocumentUpdater")
+
+  createdProjectAssignments ProjectAssignment[] @relation("ProjectAssignmentCreator")
+  updatedProjectAssignments ProjectAssignment[] @relation("ProjectAssignmentUpdater")
+  
+  assignedByProjectAssignments ProjectAssignment[] @relation("ProjectAssignmentAssignedBy")
+  engineerInProjectAssignments ProjectAssignment[] @relation("ProjectAssignmentEngineer")
+
+  createdProjectPhases ProjectPhase[] @relation("ProjectPhaseCreator")
+  updatedProjectPhases ProjectPhase[] @relation("ProjectPhaseUpdater")
+
+  createdProjectCheckpoints ProjectCheckpoint[] @relation("ProjectCheckpointCreator")
+  updatedProjectCheckpoints ProjectCheckpoint[] @relation("ProjectCheckpointUpdater")
+
+  createdCheckpointLogs CheckpointLog[] @relation("CheckpointLogCreator")
+  updatedCheckpointLogs CheckpointLog[] @relation("CheckpointLogUpdater")
+
+  createdDailyUpdates DailyUpdate[] @relation("DailyUpdateCreator")
+  updatedDailyUpdates DailyUpdate[] @relation("DailyUpdateUpdater")
+  engineerDailyUpdates DailyUpdate[] @relation("DailyUpdateEngineer")
+
+  createdExpenseRequests ExpenseRequest[] @relation("ExpenseRequestCreator")
+  updatedExpenseRequests ExpenseRequest[] @relation("ExpenseRequestUpdater")
+  requestedExpenseRequests ExpenseRequest[] @relation("ExpenseRequestRequester")
+  approvedExpenseRequests ExpenseRequest[] @relation("ExpenseRequestApprover")
+  rejectedExpenseRequests ExpenseRequest[] @relation("ExpenseRequestRejector")
+
+  @@map("users")
+}
+
+model Template {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String?   @db.VarChar
+  description String?   @db.Text
+
+  is_active   Boolean   @default(true)
+  created_at  DateTime  @default(now()) @db.Timestamp
+  created_by  String?   @db.Uuid
+  updated_at  DateTime? @updatedAt @db.Timestamp
+  updated_by  String?   @db.Uuid
+  deleted_at  DateTime? @db.Timestamp
+
+  // Audit Relations
+  creator     User?     @relation("TemplateCreator", fields: [created_by], references: [id])
+  updater     User?     @relation("TemplateUpdater", fields: [updated_by], references: [id])
+
+  // Relations
+  phases      TemplatePhase[]
+  projects    Project[]
+
+  @@map("templates")
+}
+
+model TemplatePhase {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  template_id       String?   @db.Uuid
+  name              String?   @db.VarChar
+  order_index       Int?
+  start_offset_day  Int?
+  duration_days     Int?
+  budget_estimate   Decimal   @default(0) @db.Decimal
+
+  is_active         Boolean   @default(true)
+  created_at        DateTime  @default(now()) @db.Timestamp
+  created_by        String?   @db.Uuid
+  updated_at        DateTime? @updatedAt @db.Timestamp
+  updated_by        String?   @db.Uuid
+  deleted_at        DateTime? @db.Timestamp
+
+  // Audit Relations
+  creator           User?     @relation("TemplatePhaseCreator", fields: [created_by], references: [id])
+  updater           User?     @relation("TemplatePhaseUpdater", fields: [updated_by], references: [id])
+
+  // Relations
+  template          Template?            @relation(fields: [template_id], references: [id])
+  checkpoints       TemplateCheckpoint[]
+
+  @@map("template_phases")
+}
+
+model TemplateCheckpoint {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phase_id    String?   @db.Uuid
+  name        String?   @db.VarChar
+  order_index Int?
+
+  is_active   Boolean   @default(true)
+  created_at  DateTime  @default(now()) @db.Timestamp
+  created_by  String?   @db.Uuid
+  updated_at  DateTime? @updatedAt @db.Timestamp
+  updated_by  String?   @db.Uuid
+  deleted_at  DateTime? @db.Timestamp
+
+  // Audit Relations
+  creator     User?     @relation("TemplateCheckpointCreator", fields: [created_by], references: [id])
+  updater     User?     @relation("TemplateCheckpointUpdater", fields: [updated_by], references: [id])
+
+  // Relations
+  phase       TemplatePhase? @relation(fields: [phase_id], references: [id])
+
+  @@map("template_checkpoints")
+}
+
+model Project {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  template_id     String?            @db.Uuid
+  name            String?            @db.VarChar
+  description     String?            @db.Text
+  status          ProjectStatus?
+  start_date      DateTime?          @db.Date
+  end_date        DateTime?          @db.Date
+  budget_total    Decimal            @default(0) @db.Decimal
+  
+  owner_name      String?            @db.VarChar
+
+  is_active       Boolean            @default(true)
+  created_at      DateTime           @default(now()) @db.Timestamp
+  created_by      String?            @db.Uuid
+  updated_at      DateTime?          @updatedAt @db.Timestamp
+  updated_by      String?            @db.Uuid
+  deleted_at      DateTime?          @db.Timestamp
+
+  // Audit Relations
+  creator         User?              @relation("ProjectCreator", fields: [created_by], references: [id])
+  updater         User?              @relation("ProjectUpdater", fields: [updated_by], references: [id])
+
+  // Relations
+  template        Template?          @relation(fields: [template_id], references: [id])
+  documents       ProjectDocument[]
+  assignments     ProjectAssignment[]
+  phases          ProjectPhase[]
+  daily_updates   DailyUpdate[]
+  expense_requests ExpenseRequest[]
+
+  @@map("projects")
+}
+
+model ProjectDocument {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id  String?   @db.Uuid
+  name        String?   @db.VarChar
+  url         String?   @db.VarChar
+
+  is_active   Boolean   @default(true)
+  created_at  DateTime  @default(now()) @db.Timestamp
+  created_by  String?   @db.Uuid
+  updated_at  DateTime? @updatedAt @db.Timestamp
+  updated_by  String?   @db.Uuid
+  deleted_at  DateTime? @db.Timestamp
+
+  // Audit Relations
+  creator     User?     @relation("ProjectDocumentCreator", fields: [created_by], references: [id])
+  updater     User?     @relation("ProjectDocumentUpdater", fields: [updated_by], references: [id])
+
+  // Relations
+  project     Project?  @relation(fields: [project_id], references: [id])
+
+  @@map("project_documents")
+}
+
+model ProjectAssignment {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id  String?   @db.Uuid
+  engineer_id String?   @db.Uuid
+  assigned_at DateTime  @default(now()) @db.Timestamp
+  assigned_by String?   @db.Uuid
+
+  is_active   Boolean   @default(true)
+  created_at  DateTime  @default(now()) @db.Timestamp
+  created_by  String?   @db.Uuid
+  updated_at  DateTime? @updatedAt @db.Timestamp
+  updated_by  String?   @db.Uuid
+  deleted_at  DateTime? @db.Timestamp
+
+  // Audit Relations
+  creator     User?     @relation("ProjectAssignmentCreator", fields: [created_by], references: [id])
+  updater     User?     @relation("ProjectAssignmentUpdater", fields: [updated_by], references: [id])
+
+  // Other Relations
+  project     Project?  @relation(fields: [project_id], references: [id])
+  engineer    User?     @relation("ProjectAssignmentEngineer", fields: [engineer_id], references: [id])
+  assigner    User?     @relation("ProjectAssignmentAssignedBy", fields: [assigned_by], references: [id])
+
+  @@map("project_assignments")
+}
+
+model ProjectPhase {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id      String?           @db.Uuid
+  name            String?           @db.VarChar
+  status          TaskStatus?
+  order_index     Int?
+  start_date      DateTime?         @db.Date
+  end_date        DateTime?         @db.Date
+  budget_estimate Decimal?          @db.Decimal
+  actual_cost     Decimal           @default(0) @db.Decimal
+
+  is_active       Boolean           @default(true)
+  created_at      DateTime          @default(now()) @db.Timestamp
+  created_by      String?           @db.Uuid
+  updated_at      DateTime?         @updatedAt @db.Timestamp
+  updated_by      String?           @db.Uuid
+  deleted_at      DateTime?         @db.Timestamp
+
+  // Audit Relations
+  creator         User?             @relation("ProjectPhaseCreator", fields: [created_by], references: [id])
+  updater         User?             @relation("ProjectPhaseUpdater", fields: [updated_by], references: [id])
+
+  // Relations
+  project         Project?          @relation(fields: [project_id], references: [id])
+  checkpoints     ProjectCheckpoint[]
+  expense_requests ExpenseRequest[]
+
+  @@map("project_phases")
+}
+
+model ProjectCheckpoint {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phase_id      String?     @db.Uuid
+  name          String?     @db.VarChar
+  note_text     String?     @db.Text
+  image_url     String?     @db.VarChar
+  status        TaskStatus?
+  started_at    DateTime?   @db.Timestamp
+  completed_at  DateTime?   @db.Timestamp
+  order_index   Int?
+
+  is_active     Boolean     @default(true)
+  created_at    DateTime    @default(now()) @db.Timestamp
+  created_by    String?     @db.Uuid
+  updated_at    DateTime?   @updatedAt @db.Timestamp
+  updated_by    String?     @db.Uuid
+  deleted_at    DateTime?   @db.Timestamp
+
+  // Audit Relations
+  creator       User?       @relation("ProjectCheckpointCreator", fields: [created_by], references: [id])
+  updater       User?       @relation("ProjectCheckpointUpdater", fields: [updated_by], references: [id])
+
+  // Relations
+  phase         ProjectPhase?   @relation(fields: [phase_id], references: [id])
+  logs          CheckpointLog[]
+
+  @@map("project_checkpoints")
+}
+
+model CheckpointLog {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  checkpoint_id String?     @db.Uuid
+  old_status    TaskStatus?
+  new_status    TaskStatus?
+  note_text     String?     @db.Text
+  images    CheckpointLogImage[]
+
+  is_active     Boolean     @default(true)
+  created_at    DateTime    @default(now()) @db.Timestamp
+  created_by    String?     @db.Uuid
+  updated_at    DateTime?   @updatedAt @db.Timestamp
+  updated_by    String?     @db.Uuid
+  deleted_at    DateTime?   @db.Timestamp
+
+  // Audit Relations
+  creator       User?       @relation("CheckpointLogCreator", fields: [created_by], references: [id])
+  updater       User?       @relation("CheckpointLogUpdater", fields: [updated_by], references: [id])
+
+  // Relations
+  checkpoint    ProjectCheckpoint? @relation(fields: [checkpoint_id], references: [id])
+
+  @@map("checkpoint_logs")
+}
+
+model CheckpointLogImage {
+  id       String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  log_id   String        @db.Uuid
+  url      String        @db.VarChar
+  created_at DateTime    @default(now()) @db.Timestamp
+  created_by String?     @db.Uuid
+
+  log      CheckpointLog @relation(fields: [log_id], references: [id])
+
+  @@map("checkpoint_log_images")
+}
+
+model DailyUpdate {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id  String?   @db.Uuid
+  engineer_id String?   @db.Uuid
+  date        DateTime? @db.Date
+  work_done   String?   @db.Text
+  issues      String?   @db.Text
+  images      DailyUpdateImage[]
+
+  is_active   Boolean   @default(true)
+  created_at  DateTime  @default(now()) @db.Timestamp
+  created_by  String?   @db.Uuid
+  updated_at  DateTime? @updatedAt @db.Timestamp
+  updated_by  String?   @db.Uuid
+  deleted_at  DateTime? @db.Timestamp
+
+  // Audit Relations
+  creator     User?     @relation("DailyUpdateCreator", fields: [created_by], references: [id])
+  updater     User?     @relation("DailyUpdateUpdater", fields: [updated_by], references: [id])
+
+  // Relations
+  project     Project?  @relation(fields: [project_id], references: [id])
+  engineer    User?     @relation("DailyUpdateEngineer", fields: [engineer_id], references: [id])
+
+  @@unique([project_id, date], name: "daily_update_unique")
+  @@map("daily_updates")
+}
+
+model DailyUpdateImage {
+  id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  daily_update_id  String      @db.Uuid
+  url              String      @db.VarChar
+
+  created_at       DateTime    @default(now()) @db.Timestamp
+  created_by       String?     @db.Uuid
+
+  daily_update     DailyUpdate @relation(fields: [daily_update_id], references: [id])
+
+  @@map("daily_update_images")
+}
+
+model ExpenseRequest {
+  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  project_id      String?               @db.Uuid
+  phase_id        String?               @db.Uuid
+  requester_id    String?               @db.Uuid
+  amount          Decimal?              @db.Decimal
+  description     String?               @db.Text
+  status          RequestStatus?
+  approved_by     String?               @db.Uuid
+  approved_at     DateTime?             @db.Timestamp
+  rejected_by     String?               @db.Uuid
+  rejected_at     DateTime?             @db.Timestamp
+  reviewer_note   String?               @db.Text
+
+  is_active       Boolean               @default(true)
+  created_at      DateTime              @default(now()) @db.Timestamp
+  created_by      String?               @db.Uuid
+  updated_at      DateTime?             @updatedAt @db.Timestamp
+  updated_by      String?               @db.Uuid
+  deleted_at      DateTime?             @db.Timestamp
+
+  // Audit Relations
+  creator         User?                 @relation("ExpenseRequestCreator", fields: [created_by], references: [id])
+  updater         User?                 @relation("ExpenseRequestUpdater", fields: [updated_by], references: [id])
+
+  // Multi-User Relations
+  project         Project?              @relation(fields: [project_id], references: [id])
+  phase           ProjectPhase?         @relation(fields: [phase_id], references: [id])
+  requester       User?                 @relation("ExpenseRequestRequester", fields: [requester_id], references: [id])
+  approver        User?                 @relation("ExpenseRequestApprover", fields: [approved_by], references: [id])
+  rejector        User?                 @relation("ExpenseRequestRejector", fields: [rejected_by], references: [id])
+  documents   ExpenseDocument[]
+  images      ExpenseImage[]
+
+  @@map("expense_requests")
+}
+
+model ExpenseDocument {
+  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  expense_request_id String          @db.Uuid
+  name               String          @db.VarChar
+  url                String          @db.VarChar
+  size               String?         @db.VarChar
+
+  created_at         DateTime        @default(now()) @db.Timestamp
+  created_by         String?         @db.Uuid
+
+  expense_request    ExpenseRequest  @relation(fields: [expense_request_id], references: [id])
+
+  @@map("expense_documents")
+}
+
+model ExpenseImage {
+  id                 String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  expense_request_id String          @db.Uuid
+  url                String          @db.VarChar
+
+  created_at         DateTime        @default(now()) @db.Timestamp
+  created_by         String?         @db.Uuid
+
+  expense_request    ExpenseRequest  @relation(fields: [expense_request_id], references: [id])
+
+  @@map("expense_images")
+}
